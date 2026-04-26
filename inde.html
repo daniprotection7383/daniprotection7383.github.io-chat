@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JMB SCREEN STREAM</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; padding: 20px; }
+        .box { border: 1px solid #0f0; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        video { width: 100%; max-width: 500px; border: 2px solid #0f0; background: #111; margin-top: 10px; }
+        input { padding: 10px; width: 80%; margin: 10px 0; background: #222; border: 1px solid #0f0; color: #0f0; text-align: center; }
+        button { padding: 12px 24px; background: #0f0; color: #000; border: none; font-weight: bold; cursor: pointer; width: 100%; max-width: 200px; margin: 5px; }
+        button:active { background: #0a0; }
+        .status { font-size: 0.8em; color: #888; }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+        <h2>JMB SYSTEM V.2</h2>
+        <p>ID PERANGKAT LU:</p>
+        <h3 id="my-id" style="color: #fff; letter-spacing: 2px;">Mencari ID...</h3>
+        <p class="status" id="status-text">Status: Menghubungkan ke Server Jmb...</p>
+    </div>
+
+    <div class="box">
+        <button id="btn-share">1. SHARE LAYAR GW</button>
+        <div style="margin-top: 20px;">
+            <input type="text" id="target-id" placeholder="Masukkan ID HP Lawan">
+            <button id="btn-watch">2. TONTON LAYARNYA</button>
+        </div>
+    </div>
+
+    <video id="remote-video" autoplay playsinline controls></video>
+
+    <script>
+        const myIdDisplay = document.getElementById('my-id');
+        const statusText = document.getElementById('status-text');
+        const remoteVideo = document.getElementById('remote-video');
+        
+        // Inisialisasi PeerJS
+        const peer = new Peer();
+
+        let myStream;
+
+        peer.on('open', (id) => {
+            myIdDisplay.innerText = id;
+            statusText.innerText = "Status: Online & Ready!";
+        });
+
+        // ERROR HANDLER
+        peer.on('error', (err) => {
+            console.error(err);
+            alert("Error Jmb: " + err.type);
+            statusText.innerText = "Status: Error " + err.type;
+        });
+
+        // FITUR SHARE LAYAR (HP SENDER)
+        document.getElementById('btn-share').addEventListener('click', async () => {
+            try {
+                // Konfigurasi khusus mobile
+                const constraints = {
+                    video: { 
+                        displaySurface: "monitor",
+                        logicalSurface: true,
+                        cursor: "always" 
+                    },
+                    audio: false
+                };
+                
+                myStream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                statusText.innerText = "Status: Layar sedang dibagikan!";
+                
+                // Jika stream mati (user stop sharing lewat system bar)
+                myStream.getVideoTracks()[0].onended = () => {
+                    alert("Sharing berhenti.");
+                    statusText.innerText = "Status: Sharing Berhenti.";
+                };
+                
+            } catch (err) {
+                console.error(err);
+                alert("Gagal Share: Pastikan lu pake Chrome/Safari dan HTTPS!");
+            }
+        });
+
+        // FITUR NONTON (HP RECEIVER)
+        document.getElementById('btn-watch').addEventListener('click', () => {
+            const connId = document.getElementById('target-id').value;
+            if (!connId) return alert("Isi ID-nya dulu, Raja.");
+
+            statusText.innerText = "Status: Mencoba menyambung ke " + connId;
+            
+            // HP Receiver memanggil HP Sender
+            const call = peer.call(connId, new MediaStream()); // Kirim stream kosong biar trigger
+
+            call.on('stream', (incomingStream) => {
+                statusText.innerText = "Status: Streaming Berhasil!";
+                remoteVideo.srcObject = incomingStream;
+                remoteVideo.play();
+            });
+        });
+
+        // NERIMA PANGGILAN (HP SENDER)
+        peer.on('call', (call) => {
+            if (myStream) {
+                call.answer(myStream);
+                statusText.innerText = "Status: Seseorang sedang menonton layar lu.";
+            } else {
+                alert("Ada yang mau nonton, tapi lu belum klik 'Share Layar'!");
+            }
+        });
+
+    </script>
+</body>
+</html>
